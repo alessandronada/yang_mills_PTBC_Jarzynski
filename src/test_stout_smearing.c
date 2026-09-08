@@ -275,20 +275,19 @@ void isotropic_stout_smearing_withjacobi_test(const GAUGE_GROUP* link,
    fprintf(stderr, "Jacobian implemented only for N=3, %s %d", __FILE__, __LINE__);
    exit(EXIT_FAILURE);
 #endif
-   GAUGE_GROUP link_buff, expQ, staple, Q, Q2;
-   const GAUGE_GROUP* link;
+   GAUGE_GROUP link_buff, expQ, Q, Q2;
    taexp_Su3_coeffs exp_coeffs;
 
-   times_equal_real(&staple, rho); // obtain C
+   times_equal_real(staple, rho); // obtain C
 
-   times_dag2(&expQ, &staple, link); // "expQ" is Omega = C U^dagger
+   times_dag2(&expQ, staple, link); // "expQ" is Omega = C U^dagger
    taexp_Su3_withcoeffs(&expQ, &Q, &Q2, &exp_coeffs); // "expQ" is exp(iQ) = exp(ta(Omega))
 
    equal(&link_buff, &expQ); 
    times_equal(&link_buff, link); // link = exp(i Q(Omega)) * link
    unitarize(&link_buff); // just correct numerical error
 
-   complex double detJ = stout_smearing_detjacobian_test(&exp_coeffs, &Q, &Q2, &expQ, &staple, link);
+   complex double detJ = stout_smearing_detjacobian_test(&exp_coeffs, &Q, &Q2, &expQ, staple, link);
 
    *abs_detJ = cabs(detJ);
    equal(smeared_link, &link_buff); // no problems if smeared link in GC

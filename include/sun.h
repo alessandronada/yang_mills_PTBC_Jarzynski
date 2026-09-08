@@ -945,8 +945,8 @@ inline void taexp_Su3_withcoeffs(SuN * restrict A, SuN * restrict Q, SuN * restr
    equal_SuN(&aux, A);
    ta_SuN(&aux); // aux = 0.5 * (A - A^dagger - trace)
    times_equal_complex_SuN(&aux, -I); // aux is hermitian (eq. (2))
-   equal_SuN(&Q, &aux); // Q will not be changed
-   equal_SuN(&Q2, &aux); times_equal_SuN(&Q2, &aux); // Q^2 will not be changed
+   equal_SuN(Q, &aux); // Q will not be changed
+   equal_SuN(Q2, &aux); times_equal_SuN(Q2, &aux); // Q^2 will not be changed
 
    double c0 = creal(det_SuN(&aux));
    int sign_c0;
@@ -956,7 +956,7 @@ inline void taexp_Su3_withcoeffs(SuN * restrict A, SuN * restrict Q, SuN * restr
       c0 = -c0;
    }
 
-   equal_SuN(&aux_sqr, &Q2);
+   equal_SuN(&aux_sqr, Q2);
    //times_equal_SuN(&aux_sqr, &aux);
 
    // retr(.) = 1/3 Tr(.)
@@ -1099,11 +1099,11 @@ inline void taexp_Su3_withcoeffs(SuN * restrict A, SuN * restrict Q, SuN * restr
    one_SuN(A);
    times_equal_complex_SuN(A, h_real[0] + h_imag[0] * I);
 
-   equal_SuN(&aux, &Q);
+   equal_SuN(&aux, Q);
    times_equal_complex_SuN(&aux, h_real[1] + h_imag[1] * I);
    plus_equal_SuN(A, &aux);
 
-   equal_SuN(&aux_sqr, &Q2);
+   equal_SuN(&aux_sqr, Q2);
    times_equal_complex_SuN(&aux_sqr, h_real[2] + h_imag[2] * I);
    plus_equal_SuN(A, &aux_sqr);
    
