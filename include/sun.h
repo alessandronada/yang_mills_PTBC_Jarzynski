@@ -28,6 +28,22 @@ typedef struct SuNAdj {
 //  the element [i][j] can be obtained by matrix.comp[madj(i,j)] with madj(i,j) defined in macro.h
 //
 
+#if NCOLOR == 3
+
+typedef struct {
+   double complex f1;
+   double complex f2;
+
+   double complex b10;
+   double complex b11;
+   double complex b12;
+
+   double complex b20;
+   double complex b21;
+   double complex b22;
+} taexp_Su3_coeffs;
+
+#endif
 
 // A=1
 inline void one_SuN(SuN * restrict A)
@@ -816,7 +832,7 @@ inline void taexp_Su3(SuN * restrict A)
 
    // retr(.) = 1/3 Tr(.)
    double sqrt_c1_third = sqrt(0.5 * retr_SuN(&aux_sqr)); // sqrt(c1 / 3)
-   double c0_max = 2. * pow(sqrt_c1_third, 3);
+   double c0_max = 2. * sqrt_c1_third * sqrt_c1_third * sqrt_c1_third;
    double theta_third = acos(c0 / c0_max) / 3.;
 
    double u = sqrt_c1_third * cos(theta_third);
@@ -830,8 +846,8 @@ inline void taexp_Su3(SuN * restrict A)
    double cos_u = cos(u); // useful terms
    double cos_w = cos(w);
    double sin_u = sin(u);
-   double cos_2u = cos(2 * u);
-   double sin_2u = sin(2 * u);
+   double cos_2u = cos_u * cos_u - sin_u * sin_u;
+   double sin_2u = 2.0 * sin_u * cos_u;
    double u_sqr = u * u;
    double w_sqr = w * w;
 
@@ -919,7 +935,7 @@ inline void otimes_SuN(TensProd * restrict TP, SuN const * const restrict A, SuN
      }
 }
 
-inline void taexp_Su3_withderiv(SuN * restrict A, TensProd * restrict deriv)
+inline void taexp_Su3_withcoeffs(SuN * restrict A, SuN * restrict Q, SuN * restrict Q2, taexp_Su3_coeffs * restrict coeffs)
 {
 #ifdef __INTEL_COMPILER
    __assume_aligned(&(A->comp), DOUBLE_ALIGN);
@@ -929,8 +945,8 @@ inline void taexp_Su3_withderiv(SuN * restrict A, TensProd * restrict deriv)
    equal_SuN(&aux, A);
    ta_SuN(&aux); // aux = 0.5 * (A - A^dagger - trace)
    times_equal_complex_SuN(&aux, -I); // aux is hermitian (eq. (2))
-   SuN Q; equal_SuN(&Q, &aux); // Q will not be changed
-   SuN Q2; equal_SuN(&Q2, &aux); times_equal_SuN(&Q2, &aux); // Q^2 will not be changed
+   equal_SuN(Q, &aux); // Q will not be changed
+   equal_SuN(Q2, &aux); times_equal_SuN(Q2, &aux); // Q^2 will not be changed
 
    double c0 = creal(det_SuN(&aux));
    int sign_c0;
@@ -940,12 +956,12 @@ inline void taexp_Su3_withderiv(SuN * restrict A, TensProd * restrict deriv)
       c0 = -c0;
    }
 
-   equal_SuN(&aux_sqr, &Q2);
+   equal_SuN(&aux_sqr, Q2);
    //times_equal_SuN(&aux_sqr, &aux);
 
    // retr(.) = 1/3 Tr(.)
    double sqrt_c1_third = sqrt(0.5 * retr_SuN(&aux_sqr)); // sqrt(c1 / 3)
-   double c0_max = 2. * pow(sqrt_c1_third, 3);
+   double c0_max = 2. * sqrt_c1_third * sqrt_c1_third * sqrt_c1_third;
    double theta_third = acos(c0 / c0_max) / 3.;
 
    double u = sqrt_c1_third * cos(theta_third);
@@ -959,8 +975,8 @@ inline void taexp_Su3_withderiv(SuN * restrict A, TensProd * restrict deriv)
    double cos_u = cos(u); // useful terms
    double cos_w = cos(w);
    double sin_u = sin(u);
-   double cos_2u = cos(2. * u);
-   double sin_2u = sin(2. * u);
+   double cos_2u = cos_u * cos_u - sin_u * sin_u;
+   double sin_2u = 2.0 * sin_u * cos_u;
    double u_sqr = u * u;
    double w_sqr = w * w;
 
@@ -1063,65 +1079,82 @@ inline void taexp_Su3_withderiv(SuN * restrict A, TensProd * restrict deriv)
    b2_imag[1] *= sign_c0;
    b2_real[2] *= sign_c0;
 
+   /*
+    * Export coefficients.
+    */
+   coeffs->f1 = h_real[1] + I*h_imag[1];
+   coeffs->f2 = h_real[2] + I*h_imag[2];
+
+   coeffs->b10 = b1_real[0] + I*b1_imag[0];
+   coeffs->b11 = b1_real[1] + I*b1_imag[1];
+   coeffs->b12 = b1_real[2] + I*b1_imag[2];
+
+   coeffs->b20 = b2_real[0] + I*b2_imag[0];
+   coeffs->b21 = b2_real[1] + I*b2_imag[1];
+   coeffs->b22 = b2_real[2] + I*b2_imag[2];
+
+   /*
+    * Construct exp(iQ)
+    */
    one_SuN(A);
    times_equal_complex_SuN(A, h_real[0] + h_imag[0] * I);
 
-   equal_SuN(&aux, &Q);
+   equal_SuN(&aux, Q);
    times_equal_complex_SuN(&aux, h_real[1] + h_imag[1] * I);
    plus_equal_SuN(A, &aux);
 
-   equal_SuN(&aux_sqr, &Q2);
+   equal_SuN(&aux_sqr, Q2);
    times_equal_complex_SuN(&aux_sqr, h_real[2] + h_imag[2] * I);
    plus_equal_SuN(A, &aux_sqr);
    
-   SuN B1, B2;
+   // SuN B1, B2;
    
-   one_SuN(&B1); 
-   times_equal_complex_SuN(&B1, b1_real[0] + I*b1_imag[0]); // B1 = b10
+   // one_SuN(&B1); 
+   // times_equal_complex_SuN(&B1, b1_real[0] + I*b1_imag[0]); // B1 = b10
 
-   equal_SuN(&aux, &Q);
-   times_equal_complex_SuN(&aux, b1_real[1] + I*b1_imag[1]); 
-   plus_equal_SuN(&B1, &aux); // B1 = b10 + b11 Q
+   // equal_SuN(&aux, &Q);
+   // times_equal_complex_SuN(&aux, b1_real[1] + I*b1_imag[1]); 
+   // plus_equal_SuN(&B1, &aux); // B1 = b10 + b11 Q
 
-   equal_SuN(&aux_sqr, &Q2);
-   times_equal_complex_SuN(&aux_sqr, b1_real[2] + I*b1_imag[2]); 
-   plus_equal_SuN(&B1, &aux_sqr);
-   // now B1 = b10 + b11 Q + b12 Q^2
+   // equal_SuN(&aux_sqr, &Q2);
+   // times_equal_complex_SuN(&aux_sqr, b1_real[2] + I*b1_imag[2]); 
+   // plus_equal_SuN(&B1, &aux_sqr);
+   // // now B1 = b10 + b11 Q + b12 Q^2
 
-   //Fun! let's do it again
-   one_SuN(&B2); 
-   times_equal_complex_SuN(&B2, b2_real[0] + I*b2_imag[0]);
+   // //Fun! let's do it again
+   // one_SuN(&B2); 
+   // times_equal_complex_SuN(&B2, b2_real[0] + I*b2_imag[0]);
 
-   equal_SuN(&aux, &Q);
-   times_equal_complex_SuN(&aux, b2_real[1] + I*b2_imag[1]); 
-   plus_equal_SuN(&B2, &aux);
+   // equal_SuN(&aux, &Q);
+   // times_equal_complex_SuN(&aux, b2_real[1] + I*b2_imag[1]); 
+   // plus_equal_SuN(&B2, &aux);
 
-   equal_SuN(&aux_sqr, &Q2);
-   times_equal_complex_SuN(&aux_sqr, b2_real[2] + I*b2_imag[2]); 
-   plus_equal_SuN(&B2, &aux_sqr);
+   // equal_SuN(&aux_sqr, &Q2);
+   // times_equal_complex_SuN(&aux_sqr, b2_real[2] + I*b2_imag[2]); 
+   // plus_equal_SuN(&B2, &aux_sqr);
 
-   oplus_SuN(deriv, &Q, &B1); // deriv = Q oplus B1
-   TensProd aux_TP; oplus_SuN(&aux_TP, &Q2, &B2); 
-   plus_equal_TensProd(deriv, &aux_TP); // deriv = Q oplus B1 + Q^2 oplus B2
+   // oplus_SuN(deriv, &Q, &B1); // deriv = Q oplus B1
+   // TensProd aux_TP; oplus_SuN(&aux_TP, &Q2, &B2); 
+   // plus_equal_TensProd(deriv, &aux_TP); // deriv = Q oplus B1 + Q^2 oplus B2
    
-   // from now on aux is the identity
-   one_SuN(&aux); 
-   one_TensProd(&aux_TP);
-   times_equal_complex_TensProd(&aux_TP, h_real[1] + I*h_imag[1]);
-   plus_equal_TensProd(deriv, &aux_TP);
+   // // from now on aux is the identity
+   // one_SuN(&aux); 
+   // one_TensProd(&aux_TP);
+   // times_equal_complex_TensProd(&aux_TP, h_real[1] + I*h_imag[1]);
+   // plus_equal_TensProd(deriv, &aux_TP);
    
-   otimes_SuN(&aux_TP, &Q, &aux);
-   times_equal_complex_TensProd(&aux_TP, h_real[2] + I*h_imag[2]);
-   plus_equal_TensProd(deriv, &aux_TP);
+   // otimes_SuN(&aux_TP, &Q, &aux);
+   // times_equal_complex_TensProd(&aux_TP, h_real[2] + I*h_imag[2]);
+   // plus_equal_TensProd(deriv, &aux_TP);
 
-   otimes_SuN(&aux_TP, &aux, &Q); // can I merge this with previous?
-   times_equal_complex_TensProd(&aux_TP, h_real[2] + I*h_imag[2]);
-   plus_equal_TensProd(deriv, &aux_TP);
-   // now deriv = Q oplus B1 + Q^2 oplus B2 + f1 * Id otimes Id + f2 * (Q otimes Id + Id otimes Q)
+   // otimes_SuN(&aux_TP, &aux, &Q); // can I merge this with previous?
+   // times_equal_complex_TensProd(&aux_TP, h_real[2] + I*h_imag[2]);
+   // plus_equal_TensProd(deriv, &aux_TP);
+   // // now deriv = Q oplus B1 + Q^2 oplus B2 + f1 * Id otimes Id + f2 * (Q otimes Id + Id otimes Q)
 }
 #endif // NCOLOR==3
 
-// eponential of the traceless antihermitian part
+// exponential of the traceless antihermitian part
 inline void taexp_SuN(SuN * restrict A)
   {
   #ifdef __INTEL_COMPILER
